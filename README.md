@@ -449,14 +449,14 @@ Focus on the word **"it"**.
 
 ---
 
-###### Visual Flow of Attention (Math-Free)
+###### Visual Flow of Attention
 
 ```mermaid
 flowchart TD
-    A[All Tokens] --> B[Create Q, K, V for each]
+    A[All Tokens] --> B[Create Q, K, V for each token]
     B --> C[Compare Every Query with Every Key]
     C --> D[Calculate Attention Scores]
-    D --> E[Convert scores to percentages (weights)]
+    D --> E[Convert scores to percentages weights]
     E --> F[Take weighted sum of Values]
     F --> G[New improved representation for each token]
 ```
