@@ -158,6 +158,214 @@ print(model.model.layers[0])          # One decoder layer
 print(model.model.layers[0].self_attn)   # Attention part
 print(model.model.layers[0].mlp)         # Feed-forward part
 ```
+##### Output
+```
+LlamaForCausalLM(
+  (model): LlamaModel(
+    (embed_tokens): Embedding(32000, 2048)
+    (layers): ModuleList(
+      (0-21): 22 x LlamaDecoderLayer(
+        (self_attn): LlamaAttention(
+          (q_proj): Linear(in_features=2048, out_features=2048, bias=False)
+          (k_proj): Linear(in_features=2048, out_features=256, bias=False)
+          (v_proj): Linear(in_features=2048, out_features=256, bias=False)
+          (o_proj): Linear(in_features=2048, out_features=2048, bias=False)
+        )
+        (mlp): LlamaMLP(
+          (gate_proj): Linear(in_features=2048, out_features=5632, bias=False)
+          (up_proj): Linear(in_features=2048, out_features=5632, bias=False)
+          (down_proj): Linear(in_features=5632, out_features=2048, bias=False)
+          (act_fn): SiLUActivation()
+        )
+        (input_layernorm): LlamaRMSNorm((2048,), eps=1e-05)
+        (post_attention_layernorm): LlamaRMSNorm((2048,), eps=1e-05)
+      )
+    )
+    (norm): LlamaRMSNorm((2048,), eps=1e-05)
+    (rotary_emb): LlamaRotaryEmbedding()
+  )
+  (lm_head): Linear(in_features=2048, out_features=32000, bias=False)
+)
+LlamaDecoderLayer(
+  (self_attn): LlamaAttention(
+    (q_proj): Linear(in_features=2048, out_features=2048, bias=False)
+    (k_proj): Linear(in_features=2048, out_features=256, bias=False)
+    (v_proj): Linear(in_features=2048, out_features=256, bias=False)
+    (o_proj): Linear(in_features=2048, out_features=2048, bias=False)
+  )
+  (mlp): LlamaMLP(
+    (gate_proj): Linear(in_features=2048, out_features=5632, bias=False)
+    (up_proj): Linear(in_features=2048, out_features=5632, bias=False)
+    (down_proj): Linear(in_features=5632, out_features=2048, bias=False)
+    (act_fn): SiLUActivation()
+  )
+  (input_layernorm): LlamaRMSNorm((2048,), eps=1e-05)
+  (post_attention_layernorm): LlamaRMSNorm((2048,), eps=1e-05)
+)
+LlamaAttention(
+  (q_proj): Linear(in_features=2048, out_features=2048, bias=False)
+  (k_proj): Linear(in_features=2048, out_features=256, bias=False)
+  (v_proj): Linear(in_features=2048, out_features=256, bias=False)
+  (o_proj): Linear(in_features=2048, out_features=2048, bias=False)
+)
+LlamaMLP(
+  (gate_proj): Linear(in_features=2048, out_features=5632, bias=False)
+  (up_proj): Linear(in_features=2048, out_features=5632, bias=False)
+  (down_proj): Linear(in_features=5632, out_features=2048, bias=False)
+  (act_fn): SiLUActivation()
+)
+```
+---
+**Detailed Explanation of Model Internals (TinyLlama Architecture)**
+---
+
+### 1. Overall Structure: `LlamaForCausalLM`
+
+This is the complete model. It has two main parts:
+
+- **(model)**: LlamaModel → The actual brain (does all the heavy computation)
+- **(lm_head)**: Final layer that converts internal understanding into word probabilities
+
+---
+
+### 2. Token Embeddings – `embed_tokens: Embedding(32000, 2048)`
+
+- **What it does**: Converts each token ID into a vector of 2048 numbers.
+- Vocabulary size = 32,000 tokens.
+- Each token gets its own learned vector of length **2048** (this is called `hidden_size`).
+- Think of it as: Every word/piece of word gets its own "ID card" with 2048 features.
+
+**Size**: 32,000 × 2048 = ~65 million parameters.
+
+---
+
+### 3. Main Body: 22 Decoder Layers (`ModuleList (0-21): 22 x LlamaDecoderLayer`)
+
+TinyLlama has **22 identical layers** stacked one after another. Each layer refines the understanding further.
+
+Every `LlamaDecoderLayer` has 4 main parts:
+
+#### A. Self-Attention (`LlamaAttention`)
+
+This is the **most important part** of Transformers.
+
+```python
+(self_attn): LlamaAttention(
+  (q_proj): Linear(2048 → 2048)
+  (k_proj): Linear(2048 → 256)
+  (v_proj): Linear(2048 → 256)
+  (o_proj): Linear(2048 → 2048)
+)
+```
+
+**Simple Explanation**:
+
+- **q_proj (Query)**: Turns input into "What am I looking for?"
+- **k_proj (Key)**: Turns input into "What do I contain?"
+- **v_proj (Value)**: Turns input into "What information should I pass?"
+- **o_proj (Output)**: Combines everything and gives final output.
+
+**Why different sizes?**
+- Hidden size = 2048
+- But Key and Value are only 256 dimensions → This is **Grouped Query Attention (GQA)**. It makes the model faster and uses less memory while keeping good performance.
+
+**Role of Attention**: Allows every token to "look at" all previous tokens and decide what is important.
+
+---
+
+#### B. MLP / Feed-Forward Network (`LlamaMLP`)
+
+```python
+(mlp): LlamaMLP(
+  (gate_proj): Linear(2048 → 5632)
+  (up_proj):   Linear(2048 → 5632)
+  (down_proj): Linear(5632 → 2048)
+  (act_fn):    SiLUActivation()
+)
+```
+
+**How it works (Simple flow)**:
+
+1. Input (2048 dim) goes to `gate_proj` and `up_proj`.
+2. Both expand to **5632 dimensions** (much wider).
+3. `gate_proj` decides which information should pass (like a gate).
+4. Activation function **SiLU** (Smooth ReLU) is applied.
+5. Then `down_proj` shrinks it back to 2048 dimensions.
+
+**Purpose**: This is where the model actually "thinks" and does non-linear computation. It’s like the model’s brain doing calculations and pattern matching.
+
+**Why expand to 5632?** This is roughly 2.75× hidden size — common in modern LLMs for better capacity.
+
+---
+
+#### C. Layer Normalization (`RMSNorm`)
+
+```python
+(input_layernorm)
+(post_attention_layernorm)
+```
+
+- There are two RMSNorm layers in each decoder layer.
+- **RMSNorm** is a faster and more stable version of Layer Normalization.
+- It normalizes the values so training stays stable even with 22+ layers.
+
+**Simple analogy**: Like adjusting the volume of audio before and after processing so nothing gets too loud or too quiet.
+
+---
+
+### 4. Final Layer Norm (`norm`: LlamaRMSNorm)
+
+After all 22 layers finish processing, this final normalization is applied before the output head.
+
+---
+
+### 5. Rotary Embeddings (`rotary_emb`: LlamaRotaryEmbedding)
+
+- This adds **positional information** to the tokens.
+- Unlike older models that added fixed position numbers, Llama uses **RoPE (Rotary Position Embedding)** — it rotates the vectors based on position.
+- Very effective for handling long sequences.
+
+---
+
+### 6. Language Modeling Head (`lm_head`: Linear(2048 → 32000))
+
+- Takes the final 2048-dimensional vector of the last token.
+- Converts it into **32,000 scores** (one score per token in vocabulary).
+- These scores (logits) are turned into probabilities using softmax.
+- The highest probability token is chosen as the next word.
+
+---
+
+### Full Data Flow Summary (Step by Step)
+
+1. Input text → Tokens → `embed_tokens` → 2048-dim vectors
+2. Add positional information using `rotary_emb`
+3. For each of 22 layers:
+   - Apply `input_layernorm`
+   - Self-Attention (QKV + o_proj) → Residual connection
+   - Apply `post_attention_layernorm`
+   - MLP (expand → SiLU → shrink) → Residual connection
+4. Final `norm`
+5. `lm_head` → Convert to vocabulary scores
+6. Sample next token → Repeat for generation
+
+---
+
+### Parameter Count Summary (TinyLlama 1.1B)
+
+- Embeddings + lm_head: ~130M parameters
+- Each layer: ~40M parameters
+- 22 layers: ~880M parameters
+- Total: **~1.1 Billion parameters**
+
+---
+
+**Quick Analogy of Whole Model**:
+
+Think of the model as a **22-floor building**:
+- Ground floor: Embeddings (gives meaning to words)
+- Each floor: One Decoder Layer (Attention = discussion between words, MLP = thinking)
+- Top floor: lm_head (decides which word to output next)
 
 ---
 
