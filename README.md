@@ -216,10 +216,11 @@ LlamaMLP(
 )
 ```
 ---
+
 **Detailed Explanation of Model Internals (TinyLlama Architecture)**
 ---
 
-### 1. Overall Structure: `LlamaForCausalLM`
+#### 1. Overall Structure: `LlamaForCausalLM`
 
 This is the complete model. It has two main parts:
 
@@ -228,7 +229,7 @@ This is the complete model. It has two main parts:
 
 ---
 
-### 2. Token Embeddings – `embed_tokens: Embedding(32000, 2048)`
+#### 2. Token Embeddings – `embed_tokens: Embedding(32000, 2048)`
 
 - **What it does**: Converts each token ID into a vector of 2048 numbers.
 - Vocabulary size = 32,000 tokens.
@@ -239,13 +240,13 @@ This is the complete model. It has two main parts:
 
 ---
 
-### 3. Main Body: 22 Decoder Layers (`ModuleList (0-21): 22 x LlamaDecoderLayer`)
+#### 3. Main Body: 22 Decoder Layers (`ModuleList (0-21): 22 x LlamaDecoderLayer`)
 
 TinyLlama has **22 identical layers** stacked one after another. Each layer refines the understanding further.
 
 Every `LlamaDecoderLayer` has 4 main parts:
 
-#### A. Self-Attention (`LlamaAttention`)
+##### A. Self-Attention (`LlamaAttention`)
 
 This is the **most important part** of Transformers.
 
@@ -273,7 +274,7 @@ This is the **most important part** of Transformers.
 
 ---
 
-#### B. MLP / Feed-Forward Network (`LlamaMLP`)
+##### B. MLP / Feed-Forward Network (`LlamaMLP`)
 
 ```python
 (mlp): LlamaMLP(
@@ -298,7 +299,7 @@ This is the **most important part** of Transformers.
 
 ---
 
-#### C. Layer Normalization (`RMSNorm`)
+##### C. Layer Normalization (`RMSNorm`)
 
 ```python
 (input_layernorm)
@@ -313,13 +314,13 @@ This is the **most important part** of Transformers.
 
 ---
 
-### 4. Final Layer Norm (`norm`: LlamaRMSNorm)
+#### 4. Final Layer Norm (`norm`: LlamaRMSNorm)
 
 After all 22 layers finish processing, this final normalization is applied before the output head.
 
 ---
 
-### 5. Rotary Embeddings (`rotary_emb`: LlamaRotaryEmbedding)
+#### 5. Rotary Embeddings (`rotary_emb`: LlamaRotaryEmbedding)
 
 - This adds **positional information** to the tokens.
 - Unlike older models that added fixed position numbers, Llama uses **RoPE (Rotary Position Embedding)** — it rotates the vectors based on position.
@@ -327,7 +328,7 @@ After all 22 layers finish processing, this final normalization is applied befor
 
 ---
 
-### 6. Language Modeling Head (`lm_head`: Linear(2048 → 32000))
+#### 6. Language Modeling Head (`lm_head`: Linear(2048 → 32000))
 
 - Takes the final 2048-dimensional vector of the last token.
 - Converts it into **32,000 scores** (one score per token in vocabulary).
@@ -336,7 +337,7 @@ After all 22 layers finish processing, this final normalization is applied befor
 
 ---
 
-### Full Data Flow Summary (Step by Step)
+#### Full Data Flow Summary (Step by Step)
 
 1. Input text → Tokens → `embed_tokens` → 2048-dim vectors
 2. Add positional information using `rotary_emb`
@@ -351,7 +352,7 @@ After all 22 layers finish processing, this final normalization is applied befor
 
 ---
 
-### Parameter Count Summary (TinyLlama 1.1B)
+#### Parameter Count Summary (TinyLlama 1.1B)
 
 - Embeddings + lm_head: ~130M parameters
 - Each layer: ~40M parameters
@@ -369,11 +370,150 @@ Think of the model as a **22-floor building**:
 
 ---
 
-### Recommended Tools
-- **Hugging Face Transformers** — Easiest
-- **Ollama / llama.cpp** — Fast local running
-- Start with **Llama-3.2-1B** or **3B** model
+###### 🧠 What is Self-Attention? (Intuitive Idea)
 
-**Pro Tip**: Use Google Colab with GPU. Add `load_in_4bit=True` for lower memory usage.
+Self-Attention is the **"thinking and focusing"** mechanism of the model.
+
+It allows every word (token) to **look at all other words** in the sentence and decide:  
+**“Which words are important for me right now?”**
+
+**Example Sentence:**
+> "The cat sat on the mat because it was tired"
+
+When predicting the next word after "it", the model should understand that **"it" refers to "cat"**, not "mat".
+
+Self-Attention helps the model make this connection.
 
 ---
+
+###### 🔑 How QKV Works (Simple Analogy)
+
+Think of Self-Attention like a **classroom discussion**:
+
+- **Query (Q)** → The student who is asking a question  
+- **Key (K)** → The name tag + summary of every student  
+- **Value (V)** → The actual detailed knowledge each student has
+
+---
+
+###### Visual Diagram: QKV in Action
+
+**Sentence:** `The cat sat on the mat`
+
+Let's see what happens when the model is processing the word **"it"** (assume this is a longer sentence).
+
+#### Text Diagram:
+
+```
+Tokens:     The    cat    sat    on     the    mat    because   it    was    tired
+             ↓      ↓      ↓      ↓      ↓      ↓       ↓        ↓      ↓      ↓
+```
+
+**Step 1: Create Q, K, V for every token**
+
+```
+Token      →   Query (Q)          Key (K)           Value (V)
+───────────────────────────────────────────────────────────────
+The        →   [What I want?]     [I am subject]    [Info about The]
+cat        →   [What I want?]     [I am animal]     [Info about cat]
+sat        →   [What I want?]     [I am action]     [Info about sat]
+...
+it         →   [I need reference] [I am pronoun]    [Info about it]
+was        →   [What I want?]     [I am verb]       [Info about was]
+```
+
+---
+
+### Simple Real Example with QKV
+
+**Prompt:** `The animal is cute because it is small`
+
+Focus on the word **"it"**.
+
+| Token     | Role                  | What it asks / contains                  |
+|-----------|-----------------------|------------------------------------------|
+| The       | -                     | -                                        |
+| animal    | Strong Key            | "I am a living thing"                    |
+| is        | -                     | -                                        |
+| cute      | -                     | -                                        |
+| because   | -                     | -                                        |
+| **it**    | **Query**             | "Who am I referring to?"                 |
+| is        | -                     | -                                        |
+| small     | -                     | -                                        |
+
+- The **Query** of "it" will compare itself with all **Keys**.
+- It finds the highest match with the **Key** of "**animal**".
+- So it will take a lot of **Value** (information) from "**animal**".
+
+**Result**: The model understands **"it" = animal**.
+
+---
+
+###### Visual Flow of Attention (Math-Free)
+
+```mermaid
+flowchart TD
+    A[All Tokens] --> B[Create Q, K, V for each]
+    B --> C[Compare Every Query with Every Key]
+    C --> D[Calculate Attention Scores]
+    D --> E[Convert scores to percentages (weights)]
+    E --> F[Take weighted sum of Values]
+    F --> G[New improved representation for each token]
+```
+
+**Simple Version:**
+
+1. Every token creates its own **Q, K, V**
+2. Each Query talks to all Keys → gets attention scores (how relevant?)
+3. Softmax turns scores into percentages that add up to 100%
+4. Take weighted average of all Values
+5. Output = better understanding of the token
+
+---
+
+###### Inside LlamaAttention (From the Code)
+
+```python
+(self_attn): LlamaAttention(
+  (q_proj): Linear(2048 → 2048)   # Creates Query
+  (k_proj): Linear(2048 → 256)    # Creates Key   (smaller = efficient)
+  (v_proj): Linear(2048 → 256)    # Creates Value (smaller = efficient)
+  (o_proj): Linear(2048 → 2048)   # Final output projection
+)
+```
+
+**Why K and V are smaller (256 instead of 2048)?**
+
+This is **Grouped Query Attention (GQA)**.  
+It reduces memory and computation while keeping performance almost the same.
+
+---
+
+###### Multi-Head Attention (Extra Power)
+
+- The model doesn't do attention only once.
+- It does it **multiple times in parallel** (multiple heads).
+- Each head can learn to focus on different things:
+  - Head 1: Grammar & syntax
+  - Head 2: Meaning & reference (like "it" → "cat")
+  - Head 3: Logic and common sense
+
+Then all heads' results are combined.
+
+---
+
+### Summary (Easy to Remember)
+
+| Component | Analogy                  | Job                                      |
+|-----------|--------------------------|------------------------------------------|
+| **Query** | Question / Need          | "What information do I need?"            |
+| **Key**   | Name tag / Summary       | "What do I contain?"                     |
+| **Value** | Actual knowledge         | "Here is the full information"           |
+| **Attention** | Matching & Focusing  | Decides how much attention to give each word |
+
+**One-line intuition**:  
+**Attention = Smart information retrieval inside the sentence.**
+
+---
+
+
