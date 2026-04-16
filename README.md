@@ -96,11 +96,11 @@ Steps:
 ```python
 from transformers import AutoConfig
 
-model_name = "meta-llama/Llama-3.2-1B"   # Start with small model
+model_name = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"   # Fully open model
 
 config = AutoConfig.from_pretrained(model_name)
 
-print("=== Llama Configuration ===")
+print("=== Model Configuration ===")
 print(f"Hidden Size          : {config.hidden_size}")
 print(f"Number of Layers     : {config.num_hidden_layers}")
 print(f"Attention Heads      : {config.num_attention_heads}")
