@@ -560,8 +560,3 @@ GRPO (DeepSeek's approach)
 > GRPO's bet: in the language domain with sparse end-of-episode rewards, per-step value estimates from a critic are wrong anyway. A simple group average is just as good a baseline — and it's free.
 
 The savings are real. No second 671B parameter critic model to train and store.
-
----
-
-> "Research papers are a bit like Instagram — Greek symbols are one way to flex.
-> Once you see past that, the core ideas are often quite simple." — Julia Turc
